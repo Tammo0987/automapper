@@ -1,0 +1,9 @@
+name: "automap automation"
+on: [ push ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: sbtscala/scala-sbt:eclipse-temurin-jammy-17.0.5_8_1.9.1_3.3.0
+    steps:
+      - run: sbt compile

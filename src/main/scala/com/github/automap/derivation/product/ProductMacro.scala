@@ -2,8 +2,11 @@ package com.github.automap.derivation.product
 
 import com.github.automap.api.Mapper
 import com.github.automap.api.dsl.MapperBuilder
+import com.github.automap.derivation.product.Projection
+import com.github.automap.derivation.product.projections.*
 
-import scala.quoted.{Expr, Quotes, Type}
+import scala.compiletime.asMatchable
+import scala.quoted.*
 
 protected[derivation] class ProductMacro[From: Type, To: Type, Q <: Quotes](using ctx: Q)(
     mapperBuilderExpression: Expr[MapperBuilder[From, To]],
@@ -12,37 +15,7 @@ protected[derivation] class ProductMacro[From: Type, To: Type, Q <: Quotes](usin
 ) {
   import ctx.reflect.*
 
-  private sealed trait Projection {
-    type Error  = String
-    type Result = Either[Error, Option[Term]]
-
-    def project(
-        toFieldName: String,
-        toFieldType: TypeRepr,
-        fromExpression: Expr[From],
-        fromFields: Map[String, TypeRepr]
-    ): Result
-
-    def priority: Int
-  }
-
-  private class ByNameAndTypeProjection(override val priority: Int = 1) extends Projection {
-    override def project(
-        toFieldName: String,
-        toFieldType: TypeRepr,
-        fromExpression: Expr[From],
-        fromFields: Map[String, TypeRepr]
-    ): Result = {
-      fromFields
-        .get(toFieldName)
-        .filter(_ =:= toFieldType)
-        .toRight(s"No Field with same type and name found for: $toFieldName")
-        .map(_ => Some(Select.unique(fromExpression.asTerm, toFieldName)))
-    }
-  }
-
-  // TODO move to companion object?
-  private val projections: Seq[Projection] = Seq(new ByNameAndTypeProjection())
+  private val projections: Seq[Projection[From, ctx.type]] = Seq(new ByNameAndTypeProjection())
 
   def deriveMapper(): Expr[Mapper[From, To]] = '{
     new Mapper[From, To] {
@@ -54,10 +27,34 @@ protected[derivation] class ProductMacro[From: Type, To: Type, Q <: Quotes](usin
     val fromFieldsMap = collectFieldsForTypeRepr(fromTypeRepr)
     val toFieldsMap   = collectFieldsForTypeRepr(toTypeRepr)
 
-    ???
+    val curriedProjections = projections.map(_.project(fromExpression, fromFieldsMap))
+
+    val constructorArguments = toFieldsMap.map { case (toFieldName, toFieldTypeRepr) =>
+      curriedProjections
+        .flatMap(_.apply(toFieldName, toFieldTypeRepr))
+        .headOption
+        .getOrElse(
+          report.errorAndAbort(s"No projection is applicable for field: $toFieldName")
+        )
+    }.toList
+
+    constructInstance(toTypeRepr, constructorArguments).asExprOf[To]
   }
 
   private def collectFieldsForTypeRepr(typeRepr: TypeRepr): Map[String, TypeRepr] =
     typeRepr.typeSymbol.caseFields.map(fieldSymbol => fieldSymbol.name -> typeRepr.memberType(fieldSymbol)).toMap
+
+  private def constructInstance(
+      instanceTypeRepr: TypeRepr,
+      arguments: List[Term]
+  ): Term = {
+    Select.overloaded(
+      Ref(instanceTypeRepr.typeSymbol.companionModule),
+      "apply",
+      List.empty,
+      arguments,
+      instanceTypeRepr
+    )
+  }
 
 }

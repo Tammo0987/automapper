@@ -4,8 +4,7 @@ import com.github.automap.derivation.product.Projection
 
 import scala.quoted.{Expr, Quotes}
 
-class ByNameAndTypeProjection[From, Q <: Quotes](using override val ctx: Q)
-    extends Projection[From, Q] {
+class ByNameAndTypeProjection[From, Q <: Quotes](using override val ctx: Q) extends Projection[From, Q] {
   import ctx.reflect.*
 
   override def project(

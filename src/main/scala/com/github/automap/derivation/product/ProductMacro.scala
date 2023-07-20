@@ -5,7 +5,6 @@ import com.github.automap.api.dsl.MapperBuilder
 import com.github.automap.derivation.product.Projection
 import com.github.automap.derivation.product.projections.*
 
-import scala.compiletime.asMatchable
 import scala.quoted.*
 
 protected[derivation] class ProductMacro[From: Type, To: Type, Q <: Quotes](using ctx: Q)(

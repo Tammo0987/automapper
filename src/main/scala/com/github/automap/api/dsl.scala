@@ -1,5 +1,7 @@
 package com.github.automap.api
 
+import com.github.automap.derivation.Derivation
+
 object dsl {
 
   // Mapper creation dsl
@@ -29,7 +31,7 @@ object dsl {
   }
 
   extension [From, To](inline self: MapperBuilder[From, To]) {
-    inline def build: Mapper[From, To] = ??? // TODO implement in #5
+    inline def build: Mapper[From, To] = Derivation.deriveMapperMacro(self)
   }
 
   private def runtimeError(): Nothing = throw new Error("unexpected runtime call")
